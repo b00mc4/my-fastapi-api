@@ -1,7 +1,7 @@
 from fastapi import FastAPI, APIRouter
 from Database.database import init_db
 from contextlib import asynccontextmanager
-from Endpoint import auth,product,cart,order, admin
+from Endpoint import auth,product,cart,order, admin, catagory
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -11,7 +11,9 @@ async def lifespan(app:FastAPI):
     yield
 
 app = FastAPI(title="ร้านค้าขายผลไม้", description="เป็นร้านเปิดใหม่ของมูมกะเบ ที่มีความสดตลอด พร้อมบวก", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.mount("/images/categories", StaticFiles(directory="Catagory/image"), name="category-images")
+app.mount("/images/products", StaticFiles(directory="static/image"), name="product-images")
 
 root_router = APIRouter(tags=["Fruit Store"])
 
@@ -21,6 +23,7 @@ def get_a_fruitstore():
 
 app.include_router(root_router)
 app.include_router(auth.router)
+app.include_router(catagory.router)
 app.include_router(product.router)
 app.include_router(cart.router)
 app.include_router(order.router)

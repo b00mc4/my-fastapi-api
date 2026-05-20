@@ -13,14 +13,15 @@ router = APIRouter(prefix="/order", tags=["Order"])
 def checkout(db: Session = Depends(get_db), current_user: UserDATABASE = Depends(get_current_regular_user)):
     return def_order.checkout_cart(db, current_user)
 
-@router.get("", status_code=201, summary="ค้นหาบิลของชั้นทั้งหมด")
-def checkout(db: Session = Depends(get_db), current_user: UserDATABASE = Depends(get_current_regular_user)):
+@router.get("", status_code=200, summary="ค้นหาบิลของชั้นทั้งหมด")
+def my_all_orders(db: Session = Depends(get_db), current_user: UserDATABASE = Depends(get_current_regular_user)):
     return def_order.all_orders(db, current_user)
 
-@router.get("/name", summary="ค้นหาบิล(ชื่อสินค้า)")
-def my_orders(body: OrderSearch = Depends(),db: Session = Depends(get_db),current_user: UserDATABASE = Depends(get_current_regular_user)):
+@router.get("/search", summary="ค้นหาบิล(วันที่)")
+def my_name_orders(body: OrderSearch = Depends() ,db: Session = Depends(get_db),current_user: UserDATABASE = Depends(get_current_regular_user)):
+    """"เวลาค้นหา ให้ค้นหาโดยใช้ yyyy-mm-dd นะจ๊ะคนดีของชั้น"""
     return def_order.search_my_orders(body, db, current_user)
 
 @router.get("/{uuid_orders}", summary="ค้นหาบิล(UUID)")
-def my_orders(uuid_orders: UUID,db: Session = Depends(get_db),current_user: UserDATABASE = Depends(get_current_regular_user)):
+def my_uuid_orders(uuid_orders: UUID,db: Session = Depends(get_db),current_user: UserDATABASE = Depends(get_current_regular_user)):
     return def_order.search_order_uuid(uuid_orders, db, current_user)

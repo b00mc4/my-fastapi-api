@@ -6,7 +6,6 @@ from function.def_auth import get_current_admin
 from function import def_admin
 from uuid import UUID
 from typing import Optional
-from datetime import date
 from schemas import AdminOrder
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -21,8 +20,8 @@ def delete_user(user_id: UUID,db: Session = Depends(get_db),current: UserDATABAS
     return def_admin.delete_user(user_id, db)
 
 @router.get("/orders", summary="ดูออร์เดอร์ทั้งหมด")
-def all_orders(body:AdminOrder = Depends(),db:Session = Depends(get_db) ,current: UserDATABASE = Depends(get_current_admin)):
-    return def_admin.search_orders(body,db)
+def all_orders(db:Session = Depends(get_db),page: int =1,limit:int = 20 ,current: UserDATABASE = Depends(get_current_admin)):
+    return def_admin.search_orders(db,page,limit)
 
 @router.get("/static", summary="ดูสถิติทั้งหมด")
 def all_static(db:Session = Depends(get_db), current: UserDATABASE = Depends(get_current_admin)):

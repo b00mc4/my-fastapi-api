@@ -37,6 +37,7 @@ class CatagoryDATABASE(Base):
 
     id_db   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     name_db = Column(String, unique=True, nullable=False)
+    image_db = Column(String, nullable=True)
 
     products = relationship("ProductDATABASE", back_populates="catagorys", cascade="all, delete-orphan")
 
@@ -48,6 +49,7 @@ class ProductDATABASE(Base):
     catagory_id_db = Column(UUID(as_uuid=True), ForeignKey("catagorys.id_db", ondelete="CASCADE"), nullable=False)
     name_db        = Column(String, nullable=False)
     price_db       = Column(Float, nullable=False)
+    stock_db       = Column(Integer, nullable=False, default=0)
     timecreate_db  = Column(DateTime, nullable=False, server_default=func.now())
     image_db       = Column(String, nullable=True)
 

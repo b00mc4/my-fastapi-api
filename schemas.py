@@ -42,16 +42,15 @@ class ProductCreate(BaseModel):
     uuid_catagory : UUID = None
     name_sm : str
     price_per_packorkilogram : Optional[Annotated[float, Field(gt=0)]]
+    stock : Annotated[int, Field(ge=0)] = 0
 
 class CatagoryUpdate(BaseModel):
-    uuid_catagory : UUID
     name_sm : str
 
 class ProductUpdate(BaseModel):
-    uuid_product : UUID
     uuid_catagory : Optional[UUID] = None
     name_sm : Optional[str] = None
-    price_per_packorkilogram : Optional[Annotated[float, Field(gt=0)]]
+    price_per_packorkilogram : Optional[Annotated[float, Field(gt=0)]] = None
 
 class CatagorySearch(BaseModel):
     name_catagory : Optional[str] = None
@@ -65,13 +64,23 @@ class SaiCart(BaseModel):
     uuid_product : UUID
     quantity_sm : Annotated[int, Field(ge=1)]
 
-class OrderSearch(BaseModel):    
-    product_name: Optional[str] = None   
+class OrderSearch(BaseModel):   
+    start_date   : Optional[date] = None
+    end_date     : Optional[date] = None
 
 class AdminOrder(BaseModel):
     user_id: Optional[UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     min_price   : Optional[Annotated[float, Field(ge=0)]] = None   
-    max_price   : Optional[Annotated[float, Field(ge=0)]] = None 
-    product_name: Optional[str] = None   
+    max_price   : Optional[Annotated[float, Field(ge=0)]] = None  
+
+class StockAdjust(BaseModel):
+    amount : Annotated[int, Field(ge=1)]
+
+class Quantity(BaseModel):
+    quantity_sm : Annotated[int, Field(ge=1)]
+
+class Pagination(BaseModel):
+    page : int = 1
+    limit : int = 20

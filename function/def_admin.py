@@ -27,26 +27,16 @@ def delete_user(user_id:UUID, db:Session):
     db.commit()
     return {"message":f"ลบผู้ใช้ {username} ออกจากระบบแล้ว"}
 
-def search_orders(data: AdminOrder, db: Session):
+def search_orders(db: Session, page: int = 1, limit: int = 20):
     leng = db.query(OrderDATABASE)
-    if data.user_id:
-        leng = leng.filter(OrderDATABASE.user_id_db == data.user_id)
-    if data.start_date:
-        leng = leng.filter(OrderDATABASE.create_at >= datetime.combine(data.start_date, datetime.min.time())) #combine หน้าที่จับคู่วันเวลา mintime คือ00.00.00
-    if data.end_date:
-        leng = leng.filter(OrderDATABASE.create_at <= datetime.combine(data.end_date, datetime.max.time().replace(microsecond=0))) #maxtime คือ 23.59.59.0000000 เพราะ mivrosecond = 0
-    if data.min_price:
-        leng = leng.filter(OrderDATABASE.total_price >= data.min_price)
-    if data.max_price:
-        leng = leng.filter(OrderDATABASE.total_price <= data.max_price)
-    if data.product_name:
-        leng = (leng.join(OrderItemDATABASE, OrderItemDATABASE.order_id_db == OrderDATABASE.id_db).join(ProductDATABASE, ProductDATABASE.id_db == OrderItemDATABASE.product_id_db).filter(ProductDATABASE.name_db.ilike(f"%{data.product_name}%")).distinct()) #เป็นการจัดเตรียมข้อมูลเพื่อค้นหาชื่อ product โดยเช็คว่ามี บิลมั้ย และมีproductมั้น ถ้าครบทั้งสองก็จะ filter ได้
-    orders = leng.order_by(OrderDATABASE.create_at.desc()).all() #desc คือมากไปน้อย order_by คือจัดเรียงข้อมูล
+    total = leng.count()
+    skip = (page - 1)*limit
+    orders = leng.order_by(OrderDATABASE.create_at.desc()).offset(skip).limit(limit).all() #desc คือมากไปน้อยหรือก็คือเรียงเวลาล่าสุดนั่นแหละ(create_at) order_by คือจัดเรียงข้อมูล
     if not orders:
         return {"orders": [], "message": "ไม่พบบิลที่ตรงกับเงื่อนไข"}
     result = []
-    for order in orders:
-        items = db.query(OrderItemDATABASE).filter(OrderItemDATABASE.order_id_db == order.id_db).all()
+    for o in orders:
+        items = db.query(OrderItemDATABASE).filter(OrderItemDATABASE.order_id_db == o.id_db).all()
         items_detail = []
         for item in items:
             product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == item.product_id_db).first()
@@ -56,13 +46,14 @@ def search_orders(data: AdminOrder, db: Session):
                 "price_per_piece": item.price_per_piece_db,
             })
         result.append({
-            "order_id"   : order.id_db,
-            "created_at" : order.create_at,
-            "total_price": order.total_price,
+            "order_id"   : o.id_db,
+            "created_at" : o.create_at,
+            "total_price": o.total_price,
             "items"      : items_detail
         })
  
-    return {"orders": result}
+    return {"total":total ,"page":page,"limit":limit,"total_pages": -(-total//limit),
+            "orders": result}
 
 def get_sale_static(db:Session):
     total_priceeeeee = db.query(func.sum(OrderDATABASE.total_price)).scalar()# ได้ค่าเดียวโดดๆ มักใช้คู่กับพวกคิดเลขของ database 

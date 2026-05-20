@@ -1,9 +1,10 @@
+from pydantic import Field
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from Database.model import ProductDATABASE, CartUserDATABASE, CartItemDATABASE, UserDATABASE
-from schemas import SaiCart
+from schemas import SaiCart,Quantity
 from uuid import UUID
-from typing import Optional
+from typing import Annotated
 
 def get_product(data: SaiCart, db: Session) :
     product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == data.uuid_product).first()
@@ -21,12 +22,18 @@ def get_cart(db:Session, user:UserDATABASE):
     return cart
     
 def add_product(data: SaiCart, db: Session, product: ProductDATABASE, cart: CartUserDATABASE):
-    cart_item = db.query(CartItemDATABASE).filter(CartItemDATABASE.cart_id_db == cart.id_db, CartItemDATABASE.product_id_db == data.uuid_product).first()
+    cart_item = db.query(CartItemDATABASE).filter(CartItemDATABASE.cart_id_db == cart.id_db,CartItemDATABASE.product_id_db == data.uuid_product).first()
+    current_in_cart = cart_item.quantity_db if cart_item else 0
+    total_quantity  = current_in_cart + data.quantity_sm
+    if product.stock_db == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"สินค้า '{product.name_db}' หมดแล้ว")
+    if total_quantity > product.stock_db:
+        available = product.stock_db - current_in_cart
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"สินค้า '{product.name_db}' มี stock เหลือ {product.stock_db} ชิ้น "f"(ในตะกร้ามีอยู่แล้ว {current_in_cart} ชิ้น เพิ่มได้อีกแค่ {available} ชิ้น)")
     if cart_item:
-        new_quantity = cart_item.quantity_db + data.quantity_sm
-        cart_item.quantity_db = new_quantity
+        cart_item.quantity_db = total_quantity
     else:
-        new_cart_item = CartItemDATABASE(cart_id_db=cart.id_db, product_id_db=data.uuid_product, quantity_db=data.quantity_sm)
+        new_cart_item = CartItemDATABASE(cart_id_db    = cart.id_db,product_id_db = data.uuid_product,quantity_db   = data.quantity_sm)
         db.add(new_cart_item)
     db.commit()
     return {"message": f"หยิบ {product.name_db} จำนวน {data.quantity_sm} ชิ้น ลงตะกร้าเรียบร้อยแล้ว"}
@@ -36,14 +43,16 @@ def add_to_cart_main(data: SaiCart, db: Session, current_user: UserDATABASE):
     cart = get_cart(db, current_user)
     return add_product(data, db, product, cart)
 
-def edit_quantity(data: SaiCart, db:Session, user:UserDATABASE ):
+def edit_quantity(uuid_product:UUID, data:Quantity, db:Session, user:UserDATABASE ):
     cart = db.query(CartUserDATABASE).filter(CartUserDATABASE.user_id_db == user.id_db).first()
     if not cart:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="คุณยังไม่มีตะกร้าสินค้า")
-    cart_item = db.query(CartItemDATABASE).filter(CartItemDATABASE.cart_id_db==cart.id_db, CartItemDATABASE.product_id_db == data.uuid_product).first()
+    cart_item = db.query(CartItemDATABASE).filter(CartItemDATABASE.cart_id_db==cart.id_db, CartItemDATABASE.product_id_db == uuid_product).first()
     if not cart_item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบสินค้านี้ในตะกร้าของคุณ")
-    product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == data.uuid_product).first()
+    product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == uuid_product).first()
+    if data.quantity_sm > product.stock_db:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"สินค้า '{product.name_db}' มี stock เหลือแค่ {product.stock_db} ชิ้น")
     cart_item.quantity_db = data.quantity_sm
     db.commit()
     return {"message": f"อัปเดตจำนวนสินค้าเป็น {data.quantity_sm} ชิ้น เรียบร้อยแล้ว"}
@@ -62,8 +71,6 @@ def view_cart(db: Session, current_user: UserDATABASE):
         if product:
             item_total_price = item.quantity_db * product.price_db
             grand_total += item_total_price
-            vat = round(grand_total*0.07,2)
-            vat_total = round(grand_total+vat,2)
             items_detail.append({
                 "product_id": product.id_db,
                 "product_name": product.name_db,
@@ -71,6 +78,8 @@ def view_cart(db: Session, current_user: UserDATABASE):
                 "quantity": item.quantity_db,
                 "item_total_price": item_total_price
             })
+    vat = round(grand_total*0.07,2)
+    vat_total = round(grand_total+vat,2)
     return {
         "cart_id": cart.id_db,
         "items": items_detail,
