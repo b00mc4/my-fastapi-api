@@ -7,14 +7,27 @@ from datetime import datetime
 from typing import Optional
 from schemas import AdminOrder
 
-def get_all_user( db: Session, search: Optional[UUID] = None):
+def get_all_user( db: Session, search: Optional[str] = None):
     user = db.query(UserDATABASE)
     if search:
-        user = user.filter(UserDATABASE.id_db == search)
+        user = user.filter(UserDATABASE.username_db.ilike(f"%{search}%"))
     users = user.all()
     if not users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบผู้ใช้")
-    return {"total":len(users), "users": users}
+    result = []
+    for u in users:
+        total_spent = (db.query(func.sum(OrderDATABASE.total_price)).filter(OrderDATABASE.user_id_db == u.id_db).scalar()) or 0.0
+        total_orders = (db.query(func.count(OrderDATABASE.id_db)).filter(OrderDATABASE.user_id_db == u.id_db).scalar()) or 0
+        result.append({
+            "uuid"        : u.id_db,
+            "username"    : u.username_db,
+            "email"       : u.email_db,
+            "role"        : u.role_db,
+            "total_orders": total_orders,
+            "total_spent" : round(total_spent, 2),
+        })
+ 
+    return {"total": len(result), "users": result}
 
 def delete_user(user_id:UUID, db:Session):
     user = db.query(UserDATABASE).filter(UserDATABASE.id_db == user_id).first()
@@ -33,7 +46,7 @@ def search_orders(db: Session, page: int = 1, limit: int = 20):
     skip = (page - 1)*limit
     orders = leng.order_by(OrderDATABASE.create_at.desc()).offset(skip).limit(limit).all() #desc คือมากไปน้อยหรือก็คือเรียงเวลาล่าสุดนั่นแหละ(create_at) order_by คือจัดเรียงข้อมูล
     if not orders:
-        return {"orders": [], "message": "ไม่พบบิลที่ตรงกับเงื่อนไข"}
+        return {"total": 0, "page": page, "limit": limit, "total_pages": 0, "orders": []}  # ✅ format เดียวกับตอนมีข้อมูล
     result = []
     for o in orders:
         items = db.query(OrderItemDATABASE).filter(OrderItemDATABASE.order_id_db == o.id_db).all()
@@ -47,6 +60,9 @@ def search_orders(db: Session, page: int = 1, limit: int = 20):
             })
         result.append({
             "order_id"   : o.id_db,
+            "username"   : o.user.username_db,
+            "uuid_username" : o.user.id_db,
+            "created_at" : o.create_at.isoformat(),
             "created_at" : o.create_at,
             "total_price": o.total_price,
             "items"      : items_detail
@@ -54,6 +70,51 @@ def search_orders(db: Session, page: int = 1, limit: int = 20):
  
     return {"total":total ,"page":page,"limit":limit,"total_pages": -(-total//limit),
             "orders": result}
+
+def search_orders_uuid(uuid_user: UUID,db: Session, page: int = 1, limit: int = 20):
+    query = db.query(OrderDATABASE)
+    if uuid_user:
+        user = db.query(UserDATABASE).filter(UserDATABASE.id_db == uuid_user).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบผู้ใช้นี้")
+        query = query.filter(OrderDATABASE.user_id_db == uuid_user)
+ 
+    total  = query.count()
+    skip   = (page - 1) * limit
+    orders = query.order_by(OrderDATABASE.create_at.desc()).offset(skip).limit(limit).all()
+ 
+    if not orders:
+        return {"total": 0, "page": page, "limit": limit, "total_pages": 0, "orders": []}
+ 
+    result = []
+    for o in orders:
+        items = db.query(OrderItemDATABASE).filter(OrderItemDATABASE.order_id_db == o.id_db).all()
+        items_detail = []
+        for item in items:
+            product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == item.product_id_db).first()
+            items_detail.append({
+                "product_name"   : product.name_db if product else "ถูกลบออกจากระบบแล้ว",
+                "quantity"       : item.quantity_db,
+                "price_per_piece": item.price_per_piece_db,
+                "subtotal"       : round(item.price_per_piece_db * item.quantity_db, 2),
+            })
+        result.append({
+            "order_id"   : o.id_db,
+            "user_id"    : o.user_id_db,
+            "created_at" : o.create_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "item_count" : len(items_detail),
+            "total_price": o.total_price,
+            "items"      : items_detail,
+        })
+ 
+    return {
+        "username"   : user.username_db,
+        "total"      : total,
+        "page"       : page,
+        "limit"      : limit,
+        "total_pages": -(-total // limit),
+        "orders"     : result,
+    }
 
 def get_sale_static(db:Session):
     total_priceeeeee = db.query(func.sum(OrderDATABASE.total_price)).scalar()# ได้ค่าเดียวโดดๆ มักใช้คู่กับพวกคิดเลขของ database 

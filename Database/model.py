@@ -49,6 +49,8 @@ class ProductDATABASE(Base):
     catagory_id_db = Column(UUID(as_uuid=True), ForeignKey("catagorys.id_db", ondelete="CASCADE"), nullable=False)
     name_db        = Column(String, nullable=False)
     price_db       = Column(Float, nullable=False)
+    price_type_db   = Column(String, nullable=False, default="kilo")
+    pack_size_db    = Column(Integer, nullable=True) 
     stock_db       = Column(Integer, nullable=False, default=0)
     timecreate_db  = Column(DateTime, nullable=False, server_default=func.now())
     image_db       = Column(String, nullable=True)

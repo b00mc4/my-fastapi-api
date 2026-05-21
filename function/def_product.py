@@ -18,19 +18,39 @@ def _delete_product_file(image_url: str):
     if os.path.exists(file_path):
         os.remove(file_path)
 
+def _price_label(price: float, price_type: str):
+    unit = "แพ็ค" if price_type == "pack" else "กิโล"
+    return f"฿{price:,.2f} / {unit}"
 #====================================================================================================
 
 def create_product(data: ProductCreate, db:Session):
-    oldproduct = db.query(ProductDATABASE).filter(ProductDATABASE.name_db == data.name_sm, ProductDATABASE.price_db == data.price_per_packorkilogram).first()
+    oldproduct = db.query(ProductDATABASE).filter(ProductDATABASE.name_db == data.name_sm, ProductDATABASE.catagory_id_db == data.uuid_catagory).first()
     if oldproduct:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="มีรายการนี้แล้ว")
     uuidCT = db.query(CatagoryDATABASE).filter(CatagoryDATABASE.id_db == data.uuid_catagory).first()
     if not uuidCT:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่มีหมวดหมู่นี้")
-    newproduct = ProductDATABASE(catagory_id_db=data.uuid_catagory,name_db=data.name_sm,price_db=data.price_per_packorkilogram,stock_db = data.stock)
+    newproduct = ProductDATABASE(
+        catagory_id_db = data.uuid_catagory,
+        name_db        = data.name_sm,
+        price_db       = data.price,
+        price_type_db  = data.price_type,
+        pack_size_db   = data.pack_size,
+        stock_db       = data.stock,
+    )
     db.add(newproduct)
     db.commit()
-    return {"message":"สร้างProductเรียบร้อย"}
+    db.refresh(newproduct)
+    return {
+        "message"    : "สร้างสินค้าสำเร็จ",
+        "uuid_product": newproduct.id_db,
+        "name"       : newproduct.name_db,
+        "price"      : newproduct.price_db,
+        "price_type" : newproduct.price_type_db,
+        "price_label": _price_label(newproduct.price_db, newproduct.price_type_db),
+        "pack_size"  : newproduct.pack_size_db,
+        "stock"      : newproduct.stock_db,
+    }
 
 def all_product(request: Request,db:Session, search: Optional[str] = None):
     name = db.query(ProductDATABASE)
@@ -49,12 +69,15 @@ def all_product(request: Request,db:Session, search: Optional[str] = None):
         result.append({
             "uuid_product": p.id_db,
             "uuid_catagory": p.catagory_id_db,
-            "name_Product": p.name_db,
+            "name_catagory" : p.catagorys.name_db,
+            "name_product": p.name_db,  
             "price": p.price_db,
+            "price_type"   : p.price_type_db,
+            "price_label"  : _price_label(p.price_db, p.price_type_db),
+            "pack_size"    : p.pack_size_db,
             "stock": p.stock_db,
             "image_url": image_url,
-        })
-    
+        }) 
     return result
 
 def search_product(data: UUID,request: Request, db: Session):
@@ -70,8 +93,11 @@ def search_product(data: UUID,request: Request, db: Session):
             "uuid_product": products.id_db,             
             "uuid_catagory": products.catagory_id_db,
             "name_catagory": products.catagorys.name_db,
-            "name_Product": products.name_db,
+            "name_product": products.name_db,
             "price": products.price_db,
+            "price_type"   : products.price_type_db,
+            "price_label"  : _price_label(products.price_db, products.price_type_db),
+            "pack_size"    : products.pack_size_db,
             "stock"  : products.stock_db,
             "image_url": image_url
         }
@@ -84,7 +110,7 @@ def add_stock(uuid_product: UUID, data: StockAdjust, db: Session):
     db.commit()
     return {
         "message" : f"แก้ไข stock เป็น {data.amount} สำเร็จ",
-        "product" : product.name_db,
+        "uuid_product" : product.id_db,
         "stock"   : product.stock_db,
     }
 
@@ -96,10 +122,14 @@ def update_product(uuid_product:UUID,data: ProductUpdate, db: Session):
         product.name_db = data.name_sm
     if data.uuid_catagory is not None:
         product.catagory_id_db = data.uuid_catagory
-    if data.price_per_packorkilogram is not None:
-        product.price_db = data.price_per_packorkilogram
+    if data.price is not None:
+        product.price_db = data.price
+    if data.price_type is not None:
+        product.price_type_db = data.price_type
+    if data.pack_size is not None:
+        product.pack_size_db = data.pack_size
     db.commit()
-    return {"message":"อัปเดตสินค้าสำเร็จ"}
+    return {"message":"อัปเดตสินค้าสำเร็จ", "uuid_product":product.id_db}
 
 def delete_product(uuid_product: UUID, db:Session):
     product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == uuid_product).first()
@@ -121,7 +151,7 @@ def upload_product_image(uuid_product: UUID, request: Request, file:UploadFile, 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="สินค้านี้มีรูปภาพอยู่แล้ว กรุณาใช้ PUT /image เพื่ออัปเดตรูปภาพ")
     allowed_types = ["image/jpeg","image/png","image/jpg"]
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="ไม่รองรับไฟล์นี้")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"ไฟล์ '{file.content_type}' ไม่รองรับ กรุณาใช้ {', '.join(allowed_types)} เท่านั้น")
     file_extension = file.filename.split(".")[-1]
     new_filename = f"{uuid_product}.{file_extension}"
     file_path = os.path.join(UPLOAD_DIR, new_filename)
@@ -133,7 +163,7 @@ def upload_product_image(uuid_product: UUID, request: Request, file:UploadFile, 
     product.image_db = f"/images/products/{new_filename}"
     db.commit()
     full_url = f"{request.base_url}images/products/{new_filename}"
-    return {"message":"อัพโหลดรูปภาพสำเร็จ","image_url": full_url}
+    return {"message":"อัพโหลดรูปภาพสำเร็จ","image_url": full_url,"uuid_product":product.id_db}
 
 def update_product_image(uuid_product: UUID, request: Request, file: UploadFile, db: Session):
     product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == uuid_product).first()
@@ -141,7 +171,7 @@ def update_product_image(uuid_product: UUID, request: Request, file: UploadFile,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบสินค้า")
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="ไม่รองรับไฟล์นี้")
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=f"ไฟล์ '{file.content_type}' ไม่รองรับ กรุณาใช้ {', '.join(allowed_types)} เท่านั้น")
     if product.image_db:
         _delete_product_file(product.image_db)
     file_extension = file.filename.split(".")[-1].lower()
@@ -155,7 +185,7 @@ def update_product_image(uuid_product: UUID, request: Request, file: UploadFile,
     product.image_db = f"/images/products/{new_filename}"
     db.commit()
     full_url = f"{str(request.base_url)}images/products/{new_filename}"
-    return {"message": "อัปเดตรูปภาพสำเร็จ", "image_url": full_url}
+    return {"message": "อัปเดตรูปภาพสำเร็จ", "image_url": full_url,"uuid_product":product.id_db}
 
 def delete_product_image(uuid_product: UUID, db: Session):
     product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == uuid_product).first()

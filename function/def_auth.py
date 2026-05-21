@@ -95,7 +95,7 @@ def register_user(db: Session, data:UserRegister) -> UserDATABASE:
     user = UserDATABASE(id_db=uuid.uuid4(), username_db=data.username, email_db=data.email, hashpassword_db=get_password_hash(data.password), role_db="user")
     db.add(user)
     db.commit()
-    return {"message":"สมัครแล้วเรียบร้อย พร้อมลุย"}
+    return {"message": "สมัครแล้วเรียบร้อย พร้อมลุย"}
 
 def login_user(db: Session, username:str, password:str)->dict:
     user = db.query(UserDATABASE).filter(UserDATABASE.username_db == username).first()
@@ -125,7 +125,7 @@ def forgotpassword(data:ForgotPassword , db:Session):
     new_otp = OTPDATABASE(user_id_db=user.id_db, otpcode_db = otp_code, expire_db = expire_time, verify_db =False)
     db.add(new_otp)
     db.commit()
-    return {"ส่ง OTP ไปทาง email เรียบร้อย"}
+    return {"message": "ส่ง OTP ไปทาง email เรียบร้อย", "OTP":otp_code}
 
 def resetpassword(data:ResetPassword, db:Session):
     current_time = datetime.now(THAI_TZ)
