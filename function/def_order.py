@@ -163,10 +163,17 @@ def search_order_uuid(uuid_orders :UUID,request:Request ,db:Session, user: UserD
         item_detail = []
         for item in items:
             product = db.query(ProductDATABASE).filter(ProductDATABASE.id_db == item.product_id_db).first()
-            image = str(request.base_url).rstrip("/")
-            image_url = f"{image}{product.image_db}" if product.image_db else None
-            item_detail.append({"product_name": product.name_db if product else "ถูกลบออกจากระบบแล้ว",
-                                "uuid_product": product.id_db,
+            if product:
+                image = str(request.base_url).rstrip("/")
+                image_url = f"{image}{product.image_db}" if product.image_db else None
+                product_name = product.name_db
+                product_uuid = product.id_db
+            else:
+                image_url    = None
+                product_name = "ถูกลบออกจากระบบแล้ว"
+                product_uuid = None
+            item_detail.append({"product_name": product_name,
+                                "uuid_product": product_uuid,
                                 "image_url" : image_url,
                                 "quantity": item.quantity_db,
                                "price_per_piece": item.price_per_piece_db,

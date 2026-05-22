@@ -96,7 +96,7 @@ def search_orders_uuid(uuid_user: UUID,db: Session, page: int = 1, limit: int = 
                 "product_name"   : product.name_db if product else "ถูกลบออกจากระบบแล้ว",
                 "quantity"       : item.quantity_db,
                 "price_per_piece": item.price_per_piece_db,
-                "subtotal"       : round(item.price_per_piece_db * item.quantity_db, 2),
+                "subtotal": round((item.price_per_piece_db or 0) * item.quantity_db, 2),
             })
         result.append({
             "order_id"   : o.id_db,
